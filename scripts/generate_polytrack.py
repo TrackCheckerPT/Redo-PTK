@@ -13,6 +13,7 @@ import importlib.util
 import json
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from collections.abc import Iterable, Sequence
 
 
 ROAD_STRAIGHT = 0
@@ -248,6 +249,12 @@ def parse_args() -> argparse.Namespace:
         output=None,
         show_blocks=False,
     )
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate a PolyTrack1 export string for an AI wild build."
+    )
+    parser.add_argument("--author", default=DEFAULT_AUTHOR, help="Track author metadata.")
+    parser.add_argument("--name", default=DEFAULT_NAME, help="Track name metadata.")
     return parser.parse_args()
 
 
@@ -266,6 +273,8 @@ def main() -> None:
 
     track_code = generate_polytrack_code(blocks, author=args.author, name=args.name)
     write_output(track_code, args.output)
+    blocks = build_wild_blocks()
+    print(generate_polytrack_code(blocks, author=args.author, name=args.name))
 
 
 if __name__ == "__main__":

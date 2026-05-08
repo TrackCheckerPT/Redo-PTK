@@ -35,6 +35,9 @@ You can also generate a small bridge test track:
 ./polytrack bridge --length 10
 ```
 
+PolyTrack export-string generator for a wild AI-built track compatible with the
+PolyTrack `0.5.2` serialization format described in the prompt.
+
 ## Protocol
 
 The generator emits a string that starts with `PolyTrack1`. The payload is:
@@ -90,3 +93,19 @@ Options:
 
 The script validates that every generated track contains exactly one start line
 and at least one finish line before it serializes the metadata wrapper.
+## Usage
+
+Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Generate the wild build export string:
+
+```bash
+python scripts/generate_polytrack.py
+```
+
+The script validates that the track contains exactly one start line and at least
+one finish line before it serializes the metadata wrapper.
