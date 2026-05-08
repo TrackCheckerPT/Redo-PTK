@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import importlib.util
+import json
+from collections.abc import Iterable, Sequence
+from pathlib import Path
 from collections.abc import Iterable, Sequence
 
 
@@ -27,12 +31,29 @@ DEFAULT_NAME = "AI_Wild_Build"
 Block = list[int]
 
 
+def require_serializer_dependencies() -> None:
+    """Exit with an actionable message when serializer packages are missing."""
+    missing = [
+        package
+        for package in ("msgpack", "zstandard")
+        if importlib.util.find_spec(package) is None
+    ]
+    if missing:
+        packages = ", ".join(missing)
+        raise SystemExit(
+            f"Missing serializer dependencies: {packages}. "
+            "Run `python3 -m pip install -r requirements.txt` first."
+        )
+
+
 def generate_polytrack_code(
     blocks: Sequence[Sequence[int]],
     author: str = DEFAULT_AUTHOR,
     name: str = DEFAULT_NAME,
 ) -> str:
     """Return a PolyTrack export string for a validated block list."""
+    require_serializer_dependencies()
+
     import msgpack
     import zstandard as zstd
 
@@ -148,6 +169,86 @@ def build_wild_blocks() -> list[Block]:
     return blocks
 
 
+def build_bridge_blocks(length: int = 10) -> list[Block]:
+    """Build the compact straight bridge example from the prompt."""
+    if length < 2:
+        raise ValueError("Bridge length must be at least 2 to include start and finish.")
+
+    blocks: list[Block] = [[START_LINE, 0, 0, 0, 0]]
+    for z in range(1, length):
+        block_id = FINISH_LINE if z == length - 1 else ROAD_STRAIGHT
+        blocks.append([block_id, 0, 0, z, 0])
+        blocks.append([PILLAR_SQUARE, 0, -1, z, 0])
+
+    validate_blocks(blocks)
+    return blocks
+
+
+def write_output(track_code: str, output_path: Path | None) -> None:
+    """Print the track code or write it to a file when requested."""
+    if output_path is None:
+        print(track_code)
+        return
+
+    output_path.write_text(f"{track_code}\n", encoding="utf-8")
+    print(f"Wrote PolyTrack code to {output_path}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="polytrack",
+        description="Generate PolyTrack1 export strings from the Codespace terminal.",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    wild = subparsers.add_parser(
+        "go-wild",
+        aliases=["wild"],
+        help="Generate the complex AI_Wild_Build track code.",
+    )
+    wild.add_argument("--author", default=DEFAULT_AUTHOR, help="Track author metadata.")
+    wild.add_argument("--name", default=DEFAULT_NAME, help="Track name metadata.")
+    wild.add_argument(
+        "--output",
+        type=Path,
+        help="Optional file path for the generated PolyTrack1 code.",
+    )
+    wild.add_argument(
+        "--show-blocks",
+        action="store_true",
+        help="Print the raw validated block list instead of the encoded track code.",
+    )
+
+    bridge = subparsers.add_parser(
+        "bridge",
+        help="Generate a simple straight bridge track code for quick testing.",
+    )
+    bridge.add_argument("--author", default=DEFAULT_AUTHOR, help="Track author metadata.")
+    bridge.add_argument("--name", default="AI_Bridge_Test", help="Track name metadata.")
+    bridge.add_argument(
+        "--length",
+        type=int,
+        default=10,
+        help="Number of road positions including start and finish.",
+    )
+    bridge.add_argument(
+        "--output",
+        type=Path,
+        help="Optional file path for the generated PolyTrack1 code.",
+    )
+    bridge.add_argument(
+        "--show-blocks",
+        action="store_true",
+        help="Print the raw validated block list instead of the encoded track code.",
+    )
+
+    parser.set_defaults(
+        author=DEFAULT_AUTHOR,
+        command="go-wild",
+        name=DEFAULT_NAME,
+        output=None,
+        show_blocks=False,
+    )
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate a PolyTrack1 export string for an AI wild build."
@@ -159,6 +260,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.command in {"go-wild", "wild"}:
+        blocks = build_wild_blocks()
+    elif args.command == "bridge":
+        blocks = build_bridge_blocks(length=args.length)
+    else:
+        raise ValueError(f"Unknown command: {args.command}")
+
+    if args.show_blocks:
+        print(json.dumps(blocks))
+        return
+
+    track_code = generate_polytrack_code(blocks, author=args.author, name=args.name)
+    write_output(track_code, args.output)
     blocks = build_wild_blocks()
     print(generate_polytrack_code(blocks, author=args.author, name=args.name))
 
